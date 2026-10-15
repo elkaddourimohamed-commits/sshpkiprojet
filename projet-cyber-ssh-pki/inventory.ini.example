@@ -1,0 +1,2 @@
+[lab]
+192.0.2.20 ansible_user=labadmin

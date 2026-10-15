@@ -1,0 +1,57 @@
+---
+- name: Configure a minimal HTTPS web lab
+  hosts: lab
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Install Nginx on Debian-family hosts
+      ansible.builtin.apt:
+        name: nginx
+        state: present
+        update_cache: true
+      when: ansible_os_family == "Debian"
+
+    - name: Ensure TLS directory exists
+      ansible.builtin.file:
+        path: /etc/nginx/tls
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+
+    - name: Check whether lab certificate files are present on target
+      ansible.builtin.stat:
+        path: /etc/nginx/tls/web.lab.test.crt
+      register: lab_cert
+
+    - name: Check whether lab private key is present on target
+      ansible.builtin.stat:
+        path: /etc/nginx/tls/web.lab.test.key
+      register: lab_key
+
+    - name: Deploy HTTPS site only when certificate and key exist
+      ansible.builtin.template:
+        src: ../templates/nginx-lab.conf.j2
+        dest: /etc/nginx/sites-available/lab-https
+        owner: root
+        group: root
+        mode: "0644"
+      when: lab_cert.stat.exists and lab_key.stat.exists
+
+    - name: Enable HTTPS site when certificate and key exist
+      ansible.builtin.file:
+        src: /etc/nginx/sites-available/lab-https
+        dest: /etc/nginx/sites-enabled/lab-https
+        state: link
+      when: lab_cert.stat.exists and lab_key.stat.exists
+
+    - name: Validate Nginx config when certificate and key exist
+      ansible.builtin.command: nginx -t
+      changed_when: false
+      when: lab_cert.stat.exists and lab_key.stat.exists
+
+    - name: Reload Nginx when certificate and key exist
+      ansible.builtin.service:
+        name: nginx
+        state: reloaded
+      when: lab_cert.stat.exists and lab_key.stat.exists
